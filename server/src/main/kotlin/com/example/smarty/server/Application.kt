@@ -122,42 +122,29 @@ fun main() {
 }
 
 fun Application.module() {
-    // Discover OpenCode free models in background (daemon thread, non-blocking).
-    // The registry falls back to "opencode/auto" (daemon decides) until discovery completes.
-    val modelDiscoveryThread =
-        Thread {
-            com.example.smarty.server.llm.OpencodeModelRegistry
-                .discoverAtStartup()
-        }
-    modelDiscoveryThread.isDaemon = true
-    modelDiscoveryThread.name = "model-discovery"
-    modelDiscoveryThread.start()
+    // Phase 1: LangChain4j Agent Foundation
+    log.info("=== Initializing LangChain4j agent foundation ===")
+    val modelProvider = OpenRouterModelProvider()
+    val ctxWindowManager = ContextWindowManager(modelProvider)
+    val chatModelFactory = OpenRouterChatModelFactory(OpenRouterConfig())
+    val chatMemoryStore = DatabaseFactory.getDataSource()?.let { PostgresChatMemoryStore { DatabaseFactory.getDataSource()?.connection } }
 
-    // Phase 1: LangChain4j Agent Foundation (feature-flagged)
-    if (AppConfig.enableLangChain4j) {
-        log.info("=== LangChain4j agent foundation enabled ===")
-        val modelProvider = OpenRouterModelProvider()
-        val ctxWindowManager = ContextWindowManager(modelProvider)
-        val chatModelFactory = OpenRouterChatModelFactory(OpenRouterConfig())
-        val chatMemoryStore = DatabaseFactory.getDataSource()?.let { PostgresChatMemoryStore { DatabaseFactory.getDataSource()?.connection } }
-
-        // Discover models in background for context window cache
-        val langchain4jDiscoveryThread = Thread {
-            kotlinx.coroutines.runBlocking {
-                modelProvider.getAllModels()
-                log.info("[LangChain4j] Discovered ${modelProvider.getAllModels().size} models for context window management")
-            }
+    // Discover models in background for context window cache
+    val langchain4jDiscoveryThread = Thread {
+        kotlinx.coroutines.runBlocking {
+            modelProvider.getAllModels()
+            log.info("[LangChain4j] Discovered ${modelProvider.getAllModels().size} models for context window management")
         }
-        langchain4jDiscoveryThread.isDaemon = true
-        langchain4jDiscoveryThread.name = "langchain4j-model-discovery"
-        langchain4jDiscoveryThread.start()
+    }
+    langchain4jDiscoveryThread.isDaemon = true
+    langchain4jDiscoveryThread.name = "langchain4j-model-discovery"
+    langchain4jDiscoveryThread.start()
 
-        // Stash on Application attributes for downstream wiring
-        attributes.put(ApplicationAttributes.CONTEXT_WINDOW_MANAGER, ctxWindowManager)
-        attributes.put(ApplicationAttributes.CHAT_MODEL_FACTORY, chatModelFactory)
-        if (chatMemoryStore != null) {
-            attributes.put(ApplicationAttributes.CHAT_MEMORY_STORE, chatMemoryStore)
-        }
+    // Stash on Application attributes for downstream wiring
+    attributes.put(ApplicationAttributes.CONTEXT_WINDOW_MANAGER, ctxWindowManager)
+    attributes.put(ApplicationAttributes.CHAT_MODEL_FACTORY, chatModelFactory)
+    if (chatMemoryStore != null) {
+        attributes.put(ApplicationAttributes.CHAT_MEMORY_STORE, chatMemoryStore)
     }
 
     // Initialize Database

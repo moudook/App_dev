@@ -28,7 +28,7 @@ import java.util.UUID
 class OpencodeLlmProvider(
     private val client: HttpClient,
     override val providerName: String = "OpenRouter",
-    private val defaultModel: String = OpencodeModelRegistry.defaultModel,
+    private val defaultModel: String = "openrouter/auto",
 ) : LlmProvider {
     private val logger = LoggerFactory.getLogger(OpencodeLlmProvider::class.java)
 

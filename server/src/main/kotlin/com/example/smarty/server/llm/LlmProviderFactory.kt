@@ -68,11 +68,10 @@ object LlmProviderFactory {
     }
 
     fun create(client: HttpClient): LlmProvider {
-        val resolvedModel = OpencodeModelRegistry.requireAllowedFreeModel(null)
+        val resolvedModel = "openrouter/auto"
         logger.info(
-            "[LlmProviderFactory] Creating OpencodeLlmProvider — model={}, daemon port={}",
+            "[LlmProviderFactory] Creating LlmProvider — model={}",
             resolvedModel,
-            4096,
         )
 
         return OpencodeLlmProvider(

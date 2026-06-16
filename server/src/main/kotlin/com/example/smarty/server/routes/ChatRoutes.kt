@@ -2,23 +2,15 @@ package com.example.smarty.server.routes
 
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.protocol.ClientEvent
-import com.example.smarty.server.agent.ServerAgent
-import com.example.smarty.server.agent.AgentPersistenceManager
-import com.example.smarty.server.data.CalendarEventNotesRepository
-import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.ChatMessageNotesRepository
 import com.example.smarty.server.data.ChatRepository
-import com.example.smarty.server.data.ConversationSummarizer
 import com.example.smarty.server.data.DatabaseFactory
-import com.example.smarty.server.data.NoteRepository
 import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.data.Stack
 import com.example.smarty.server.data.StackRepository
-import com.example.smarty.server.data.TimerRepository
 import com.example.smarty.server.data.ToolSessionRepository
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.LlmProviderFactory
-import com.example.smarty.server.llm.OpencodeModelRegistry
 import com.example.smarty.server.plugins.firebaseUser
 import com.example.smarty.server.services.FcmNotificationService
 import io.ktor.client.request.header
@@ -113,13 +105,6 @@ data class BriefingResponse(
     val success: Boolean = true,
 )
 
-private fun normalizeProviderSelection(provider: String?): String? {
-    // feat/cli is OpenCode-only. All provider selection is normalized to null (default),
-    // meaning the server always uses OpencodeLlmProvider. Legacy API provider names
-    // are accepted without error but silently mapped to the OpenCode default.
-    return null
-}
-
 fun Application.configureChatRoutes(
     noteService: com.example.smarty.server.services.NoteService? = null,
     fcmService: FcmNotificationService? = null,
@@ -137,29 +122,19 @@ fun Application.configureChatRoutes(
     val httpClient = LlmProviderFactory.getOrCreateHttpClient()
 
     // Initialize dependencies (Manual DI for now)
-    // In production, use Koin or Dagger
     val vectorStore = PostgresVectorStore()
 
     // Default provider - use cached instance for better performance
     val llmProvider = LlmProviderFactory.getOrCreateProvider(httpClient)
-    val summarizer = ConversationSummarizer(llmProvider)
 
     // Database and Repository
     val dataSource = DatabaseFactory.getDataSource()
     val chatMessageNotesRepo = dataSource?.let { ChatMessageNotesRepository(it) }
-    val calendarEventNotesRepo = dataSource?.let { CalendarEventNotesRepository(it) }
     val chatRepository = dataSource?.let { ChatRepository(it, chatMessageNotesRepo!!) }
-    val noteRepository = dataSource?.let { NoteRepository(it, chatMessageNotesRepo!!, calendarEventNotesRepo!!) }
-    val timerRepository = dataSource?.let { TimerRepository(it) }
-    val calendarRepository = dataSource?.let { CalendarRepository(it, calendarEventNotesRepo!!) }
     val stackRepository = dataSource?.let { StackRepository(it) }
 
-    // LangChain4j engine (Phase 4, feature-flagged)
-    val langChain4jEngine = if (com.example.smarty.server.config.AppConfig.enableLangChain4j) {
-        com.example.smarty.server.agent2.EngineFactory.createEngine(this)
-    } else {
-        null
-    }
+    // LangChain4j engine
+    val langChain4jEngine = com.example.smarty.server.agent2.EngineFactory.createEngine(this)
 
     routing {
         // ============================================================================
@@ -235,7 +210,6 @@ fun Application.configureChatRoutes(
                     val request = call.receive<BriefingRequest>()
                     val userId = user.userId
 
-                    // Input validation
                     com.example.smarty.server.utils.InputValidation
                         .validateQuery(request.prompt)
                     request.token?.let {
@@ -244,33 +218,10 @@ fun Application.configureChatRoutes(
 
                     call.application.log.info("Generating daily briefing for user: $userId")
 
-                    // Use default provider
-                    val briefingSummarizer = ConversationSummarizer(llmProvider)
-
-                    // Create agent for single run
-                    val agent =
-                        ServerAgent(
-                            llmProvider = llmProvider,
-                            vectorStore = vectorStore,
-                            summarizer = briefingSummarizer,
-                            noteRepository = noteRepository,
-                            timerRepository = timerRepository,
-                            calendarRepository = calendarRepository,
-                            eventEmitter = { /* No streaming for briefing yet */ },
-                            userId = userId,
-                            noteService = noteService,
-                            capabilities =
-                                com.example.smarty.server.agent.DeviceRegistry
-                                    .getCapabilities(userId),
-                        )
-
-                    // Run the agent (no modelOverride - provider already selected)
-                    val briefing =
-                        agent.run(
-                            query = request.prompt,
-                            history = emptyList(),
-                        )
-
+                    val messages = listOf(
+                        LlmMessage(role = LlmMessage.Role.USER, content = request.prompt),
+                    )
+                    val briefing = llmProvider.generate(messages).content ?: ""
                     call.respond(HttpStatusCode.OK, BriefingResponse(briefing))
                 } catch (e: Exception) {
                     call.application.log.error("Briefing generation failed", e)
@@ -436,57 +387,16 @@ fun Application.configureChatRoutes(
                     ),
                 )
 
-                val checkpoint = AgentPersistenceManager(user.userId).loadCheckpoint(sessionId)
-                val resumeHistory = checkpoint?.messages ?: chatRepository?.getHistory(user.userId, sessionId).orEmpty()
-                val resumeToolResult =
-                    if (checkpoint?.context == "ask_user_suspended") {
-                        null
-                    } else {
-                        LlmMessage(
-                            role = LlmMessage.Role.TOOL,
-                            content = "[Tool Result for ask_user]: User answered:\n$answersForLlm",
-                            name = "ask_user",
-                            toolCallId = toolCallId,
-                        )
-                    }
-                val resumed = if (langChain4jEngine != null) {
-                    val toolResultText = resumeToolResult?.content
-                        ?.let { """{"id":"$toolCallId","name":"ask_user","content":"${it.replace("\"", "\\\"")}"}""" }
-                    com.example.smarty.server.agent.AgentRunManager.startEngineRun(
-                        engine = langChain4jEngine,
-                        request = com.example.smarty.server.agent2.AgentRequest(
-                            query = "",
-                            sessionId = sessionId,
-                            userId = user.userId,
-                            resumeToolResultJson = toolResultText,
-                        ),
-                    )
-                } else {
-                    com.example.smarty.server.agent.AgentRunManager.startRun(
-                        userId = user.userId,
-                        sessionId = sessionId,
+                val toolResultText = """{"id":"$toolCallId","name":"ask_user","content":"${answersForLlm.replace("\"", "\\\"")}"}"""
+                val resumed = com.example.smarty.server.agent.AgentRunManager.startEngineRun(
+                    engine = langChain4jEngine,
+                    request = com.example.smarty.server.agent2.AgentRequest(
                         query = "",
-                        llmProvider = llmProvider,
-                        vectorStore = vectorStore,
-                        summarizer = summarizer,
-                        noteRepository = noteRepository,
-                        timerRepository = timerRepository,
-                        calendarRepository = calendarRepository,
-                        noteService = noteService,
-                        chatRepository = chatRepository,
-                        modelOverride = null,
-                        clientTimezone = null,
-                        clientTimeMillis = null,
-                        personality = null,
-                        history = resumeHistory,
-                        opencodeSessionId = null,
-                        messageId = null,
-                        variantOverride = null,
-                        section = null,
-                        fcmService = fcmService,
-                        resumeToolResult = resumeToolResult,
-                    )
-                }
+                        sessionId = sessionId,
+                        userId = user.userId,
+                        resumeToolResultJson = toolResultText,
+                    ),
+                )
                 call.application.log.info("[Webhook] ask_user_response: resume requested session=$sessionId started=$resumed")
                 call.respond(HttpStatusCode.OK, mapOf("status" to "answered", "toolCallId" to toolCallId, "resumed" to resumed))
             }
@@ -613,7 +523,7 @@ fun Application.configureChatRoutes(
                                 }
 
                                 // Launch the run via decoupled manager
-                                val started = if (langChain4jEngine != null) {
+                                val started =
                                     com.example.smarty.server.agent.AgentRunManager.startEngineRun(
                                         engine = langChain4jEngine,
                                         request = com.example.smarty.server.agent2.AgentRequest(
@@ -628,30 +538,6 @@ fun Application.configureChatRoutes(
                                         ),
                                         messageId = chatRequest.messageId,
                                     )
-                                } else {
-                                    com.example.smarty.server.agent.AgentRunManager.startRun(
-                                        userId = userId,
-                                        sessionId = activeSessionId,
-                                        query = chatRequest.query,
-                                        llmProvider = llmProvider,
-                                        vectorStore = vectorStore,
-                                        summarizer = summarizer,
-                                        noteRepository = noteRepository,
-                                        timerRepository = timerRepository,
-                                        calendarRepository = calendarRepository,
-                                        noteService = noteService,
-                                        chatRepository = chatRepository,
-                                        modelOverride = chatRequest.model?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) },
-                                        clientTimezone = chatRequest.timezone,
-                                        clientTimeMillis = chatRequest.clientTime,
-                                        personality = chatRequest.personality,
-                                        history = chatRepository?.getHistory(userId, activeSessionId) ?: emptyList(),
-                                        opencodeSessionId = chatRepository?.getSession(userId, activeSessionId)?.opencodeSessionId,
-                                        messageId = chatRequest.messageId,
-                                        variantOverride = chatRequest.variant,
-                                        section = chatRequest.section,
-                                    )
-                                }
                                 if (!started) {
                                     send(
                                         Frame.Text(
@@ -726,183 +612,6 @@ fun Application.configureChatRoutes(
                 }
             }
 
-            /**
-             * POST version of SSE endpoint for larger payloads.
-             * Accepts JSON body with query, sessionId, and optional file context.
-             *
-             * Usage:
-             * ```
-             * curl -X POST -H "Content-Type: application/json" -H "Authorization: Bearer <token>" \
-             *   -d '{"query":"analyze this","sessionId":"UUID","fileContext":"extracted text from PDF..."}' \
-             *   "http://localhost:7860/chat/query"
-             * ```
-             */
-            post("/chat/query") {
-                val user = call.firebaseUser()
-                if (user == null) {
-                    call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authentication required"))
-                    return@post
-                }
-
-                try {
-                    val request = call.receive<ChatRequest>()
-                    val userId = user.userId
-                    var sessionId = request.sessionId
-
-                    // Input validation
-                    try {
-                        com.example.smarty.server.utils.InputValidation
-                            .validateQuery(request.query)
-                        sessionId?.let {
-                            com.example.smarty.server.utils.InputValidation
-                                .validateSessionId(it)
-                        }
-                    } catch (e: IllegalArgumentException) {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid input: ${e.message}"))
-                        return@post
-                    }
-
-                    val safeModelOverride = request.model?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
-
-                    call.application.log.info("POST chat/query started for user: $userId, hasFileContext: ${request.fileContext != null}")
-
-                    // CRITICAL FIX: If client specifically requests an OpenCode free model,
-                    // force the provider to OPENCODE, overriding whatever the default/fallback is.
-                    val providerParam = normalizeProviderSelection(request.provider)
-                    if (safeModelOverride != null && safeModelOverride.startsWith("opencode/")) {
-                        call.application.log.info("Client requested OpenCode model ($safeModelOverride). Using OPENCODE provider.")
-                    }
-
-                    // Create provider for this request
-                    val streamProvider = LlmProviderFactory.create(httpClient)
-
-                    val streamSummarizer = ConversationSummarizer(streamProvider)
-
-                    // Combine query with file context if present
-                    val fullQuery =
-                        if (!request.fileContext.isNullOrBlank()) {
-                            val attachmentDesc = request.attachments?.joinToString(", ") { "${it.type}: ${it.name}" } ?: "file"
-                            """
-                        |User uploaded: $attachmentDesc
-                        |
-                        |Extracted content:
-                        |${request.fileContext}
-                        |
-                        |User's question: ${request.query}
-                            """.trimMargin()
-                        } else {
-                            request.query
-                        }
-
-                    // Handle Session Persistence
-                    val opencodeSessionId: String?
-                    val history =
-                        if (chatRepository != null) {
-                            if (sessionId.isNullOrBlank()) {
-                                sessionId = chatRepository.createSession(userId, "New Chat")
-                            }
-
-                            // Save User Message
-                            if (request.query.isNotBlank()) {
-                                chatRepository.saveMessage(userId, sessionId, LlmMessage.Role.USER.name, fullQuery)
-                            }
-
-                            opencodeSessionId = chatRepository.getSession(userId, sessionId)?.opencodeSessionId
-                            chatRepository.getHistory(userId, sessionId)
-                        } else {
-                            opencodeSessionId = null
-                            emptyList()
-                        }
-
-                    val agent =
-                        ServerAgent(
-                            llmProvider = streamProvider,
-                            vectorStore = vectorStore,
-                            summarizer = streamSummarizer,
-                            noteRepository = noteRepository,
-                            timerRepository = timerRepository,
-                            calendarRepository = calendarRepository,
-                            eventEmitter = { /* no-op */ },
-                            userId = userId,
-                            noteService = noteService,
-                            capabilities =
-                                com.example.smarty.server.agent.DeviceRegistry
-                                    .getCapabilities(userId),
-                        )
-
-                    // Register active session to prevent digest scheduler interference
-                    val activeSessionId = sessionId ?: UUID.randomUUID().toString()
-                    com.example.smarty.server.agent.ActiveSessionManager
-                        .startSession(userId, activeSessionId, "chat_query")
-
-                    try {
-                        val assistantResponse =
-                            agent.run(
-                                query = fullQuery,
-                                sessionId = activeSessionId,
-                                history = history,
-                                modelOverride = safeModelOverride,
-                                clientTimezone = request.timezone,
-                                clientTimeMillis = request.clientTime,
-                                personality = request.personality,
-                                opencodeSessionId = opencodeSessionId,
-                                onOpencodeSessionCreated = { newOpencodeSessionId ->
-                                    if (chatRepository != null) {
-                                        try {
-                                            chatRepository.updateOpencodeSessionId(userId, activeSessionId, newOpencodeSessionId)
-                                        } catch (e: Exception) {
-                                            call.application.log.error("Failed to update opencodeSessionId", e)
-                                        }
-                                    }
-                                },
-                                variantOverride = request.variant,
-                            )
-
-                        // Save response
-                        if (chatRepository != null && assistantResponse.isNotEmpty()) {
-                            chatRepository.saveMessage(
-                                userId = userId,
-                                sessionId = sessionId!!,
-                                role = LlmMessage.Role.ASSISTANT.name,
-                                content = assistantResponse,
-                            )
-                            call.application.log.info("Saved assistant response: ${assistantResponse.length} chars")
-                        }
-
-                        // Return response
-                        call.respond(
-                            HttpStatusCode.OK,
-                            mapOf(
-                                "sessionId" to sessionId,
-                                "response" to assistantResponse,
-                            ),
-                        )
-                    } catch (e: Exception) {
-                        call.application.log.error("POST chat/query OpenCode agent execution failed", e)
-                        call.respond(
-                            HttpStatusCode.InternalServerError,
-                            mapOf(
-                                "error" to "An internal error occurred.",
-                                "type" to e.javaClass.simpleName,
-                                "message" to (e.message?.take(400) ?: "no message"),
-                            ),
-                        )
-                    } finally {
-                        com.example.smarty.server.agent.ActiveSessionManager
-                            .endSession(userId, activeSessionId)
-                    }
-                } catch (e: Exception) {
-                    call.application.log.error("POST chat/query failed", e)
-                    call.respond(
-                        HttpStatusCode.InternalServerError,
-                        mapOf(
-                            "error" to "An internal error occurred.",
-                            "type" to e.javaClass.simpleName,
-                            "message" to (e.message?.take(400) ?: "no message"),
-                        ),
-                    )
-                }
-            }
 
             // === Permission Engine: Approval callback ===
             post("/api/v1/chat/events/approval") {
@@ -1380,30 +1089,7 @@ fun Application.configureChatRoutes(
             call.respond(mapOf("status" to "noop", "message" to "ActiveEventBridge removed; use WebSocket /chat/ws for approval flows"))
         }
 
-        // ============================================================================
-        // DEBUG: current model state (discovered models, default, active)
-        // GET /debug/model/info
-        // AUTH DISABLED.
-        // ============================================================================
-        get("/debug/model/info") {
-            val models =
-                com.example.smarty.server.llm.OpencodeModelRegistry
-                    .discoveredFreeModels()
-            val currentDefault =
-                com.example.smarty.server.llm.OpencodeModelRegistry
-                    .requireAllowedFreeModel(null)
-            val directZenFlag = System.getenv("OPENCODE_USE_DIRECT_ZEN") ?: ""
-            val stateJson =
-                buildString {
-                    append("{\"defaultModel\":\"$currentDefault\",\"opencodeUseDirectZen\":\"$directZenFlag\",\"discovered\":[")
-                    models.forEachIndexed { i, m ->
-                        if (i > 0) append(",")
-                        append("{\"id\":\"${m.id}\",\"label\":\"${m.label}\",\"provider\":\"${m.provider}\"}")
-                    }
-                    append("],\"count\":${models.size}}")
-                }
-            call.respondText(stateJson, ContentType.Application.Json)
-        }
+
 
         /**
          * Convert a JSON tools array (OpenAI shape) into the LlmProvider's
@@ -1648,7 +1334,7 @@ fun Application.configureChatRoutes(
                     ?: parsed?.get("messages") as? kotlinx.serialization.json.JsonArray
             val sessionId = (parsed?.get("sessionId") as? JsonPrimitive)?.contentOrNull
             val systemOverride = parsed?.get("system")?.let { (it as? JsonPrimitive)?.contentOrNull }
-            val safeModelOverride = modelOverride?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
+            val safeModelOverride = modelOverride?.takeIf { it.isNotBlank() }
 
             val streamProvider =
                 LlmProviderFactory.create(
@@ -1813,160 +1499,6 @@ fun Application.configureChatRoutes(
                         "message" to e.message,
                     ),
                 )
-            }
-        }
-
-        // ============================================================================
-        // POST /chat/query/agent/stream
-        // Streaming version of /chat/query. Uses the real ServerAgent (so the
-        // OpenCode CLI tool/MCP/subagent/permission loop is exercised) but
-        // returns AgentEvents as SSE so the client sees them live instead of
-        // waiting for the final JSON blob.
-        //
-        // SSE data: {type:"event", eventType, +ms, event:<AgentEvent JSON>}
-        //   event: done  {response, sessionId, totalMs, totalEvents}
-        //
-        // Logs every emission to /tmp/agent-loop.log with relative timestamps.
-        // AUTH DISABLED.
-        // ============================================================================
-        post("/chat/query/agent/stream") {
-            val body = call.receiveText()
-            val parsed = runCatching { Json.parseToJsonElement(body).jsonObject }.getOrNull()
-            val messageText =
-                parsed?.get("query")?.let { (it as? JsonPrimitive)?.contentOrNull }
-                    ?: parsed?.get("message")?.let { (it as? JsonPrimitive)?.contentOrNull }
-                    ?: "What is 2+2? Briefly."
-            val modelOverride = parsed?.get("model")?.let { (it as? JsonPrimitive)?.contentOrNull }
-            val sessionId = (parsed?.get("sessionId") as? JsonPrimitive)?.contentOrNull
-
-            val safeModel = modelOverride?.let { OpencodeModelRegistry.requireAllowedFreeModel(it) }
-
-            val streamProvider = LlmProviderFactory.create(LlmProviderFactory.getOrCreateHttpClient())
-            val streamSummarizer =
-                com.example.smarty.server.data
-                    .ConversationSummarizer(streamProvider)
-            val activeSessionId = sessionId ?: UUID.randomUUID().toString()
-
-            val started = System.currentTimeMillis()
-            val trace = StringBuilder()
-            val totalEventsBoxed = intArrayOf(0)
-            val lastEventMsBoxed = longArrayOf(started)
-
-            fun log(line: String) {
-                val ts = System.currentTimeMillis() - started
-                val withTs = "[+${ts}ms] $line"
-                trace.append(withTs).append("\n")
-                try {
-                    java.io.File("/tmp/agent-loop.log").appendText("$withTs\n")
-                } catch (_: Exception) {
-                }
-                call.application.log.info(withTs)
-            }
-
-            val eventChannel =
-                kotlinx.coroutines.channels.Channel<com.example.smarty.protocol.AgentEvent>(
-                    kotlinx.coroutines.channels.Channel.UNLIMITED,
-                )
-            val agent =
-                ServerAgent(
-                    llmProvider = streamProvider,
-                    vectorStore = vectorStore,
-                    summarizer = streamSummarizer,
-                    noteRepository = noteRepository,
-                    timerRepository = timerRepository,
-                    calendarRepository = calendarRepository,
-                    eventEmitter = { event ->
-                        eventChannel.trySend(event)
-                        val now = System.currentTimeMillis()
-                        val dMs = now - lastEventMsBoxed[0]
-                        lastEventMsBoxed[0] = now
-                        totalEventsBoxed[0]++
-                        val typeName = event::class.simpleName ?: "unknown"
-                        log("EVENT $typeName +${dMs}ms")
-                    },
-                    userId = "agent-stream-test",
-                    noteService = noteService,
-                    capabilities = null,
-                )
-
-            var responseText = ""
-            var runError: Throwable? = null
-            try {
-                call.respondTextWriter(contentType = ContentType.Text.EventStream) {
-                    write(":ping\n\n")
-                    flush()
-                    log("AGENT START model=$safeModel query=\"$messageText\"")
-
-                    // Drain events from the channel and emit them as SSE.
-                    val drainJob =
-                        kotlinx.coroutines.GlobalScope.launch {
-                            try {
-                                for (event in eventChannel) {
-                                    val now2 = System.currentTimeMillis()
-                                    val dMs2 = now2 - lastEventMsBoxed[0]
-                                    val typeName = event::class.simpleName ?: "unknown"
-                                    val eventJson =
-                                        runCatching {
-                                            Json.encodeToString(
-                                                com.example.smarty.protocol.AgentEvent
-                                                    .serializer(),
-                                                event,
-                                            )
-                                        }.getOrElse { "{\"err\":${JsonPrimitive(it.message ?: it.javaClass.simpleName)}}" }
-                                    write(
-                                        "data: {\"type\":\"event\",\"eventType\":${JsonPrimitive(typeName)}," +
-                                            "\"+ms\":$dMs2,\"event\":$eventJson}\n\n",
-                                    )
-                                    flush()
-                                }
-                            } catch (_: Exception) {
-                            }
-                        }
-
-                    try {
-                        responseText =
-                            agent.run(
-                                query = messageText,
-                                sessionId = activeSessionId,
-                                history = emptyList(),
-                                modelOverride = safeModel,
-                            )
-                    } catch (e: Throwable) {
-                        runError = e
-                        log("AGENT RUN FAILED class=${e.javaClass.name} msg=${e.message}")
-                    }
-                    eventChannel.close()
-                    drainJob.join()
-
-                    // Final done event inside the writer so it lands on the SSE stream.
-                    val finalTotalMs = System.currentTimeMillis() - started
-                    log("AGENT END totalEvents=${totalEventsBoxed[0]} totalMs=$finalTotalMs responseLen=${responseText.length}")
-                    if (runError != null) {
-                        write(
-                            "data: {\"type\":\"error\",\"class\":${JsonPrimitive(runError!!.javaClass.name)}," +
-                                "\"message\":${JsonPrimitive(runError!!.message ?: "")}}\n\n",
-                        )
-                        flush()
-                    }
-                    write(
-                        "event: done\ndata: {\"type\":\"done\"," +
-                            "\"response\":${JsonPrimitive(responseText)}," +
-                            "\"sessionId\":${JsonPrimitive(activeSessionId)}," +
-                            "\"totalEvents\":${totalEventsBoxed[0]}," +
-                            "\"totalMs\":$finalTotalMs}\n\n",
-                    )
-                    flush()
-                }
-            } catch (e: Exception) {
-                log("RESPOND WRITER FAILED class=${e.javaClass.name} msg=${e.message}")
-                if (eventChannel.isClosedForReceive.not() && eventChannel.isClosedForSend.not()) {
-                    runCatching { eventChannel.close() }
-                }
-                call.respond(
-                    HttpStatusCode.InternalServerError,
-                    mapOf("error" to "agent stream failed", "class" to e.javaClass.name, "message" to e.message),
-                )
-                return@post
             }
         }
 

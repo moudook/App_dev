@@ -2,7 +2,6 @@ package com.example.smarty.server.routes
 
 import com.example.smarty.protocol.AgentCommand
 import com.example.smarty.server.agent.ActiveSessionManager
-import com.example.smarty.server.llm.OpencodeModelRegistry
 import com.example.smarty.server.monitoring.ServerActivityMonitor
 import com.example.smarty.server.serverStartTime
 import io.ktor.server.application.Application
@@ -88,22 +87,7 @@ fun Application.configureHealthRoutes() {
         }
 
         get("/api/v1/opencode/models") {
-            val refresh = call.request.queryParameters["refresh"] == "true"
-            val state =
-                if (refresh) {
-                    OpencodeModelRegistry.refreshFromCli()
-                } else {
-                    OpencodeModelRegistry.currentState()
-                }
-
-            // Log what we're returning
-            call.application.log.info(
-                "[ModelsAPI] Returning {} models: {}",
-                state.models.size,
-                state.models.map { it.id },
-            )
-
-            call.respond(state)
+            call.respondText("""{"models":[],"default":"openrouter/auto","updatedAt":0}""", io.ktor.http.ContentType.Application.Json)
         }
 
         /**
@@ -150,21 +134,13 @@ fun Application.configureHealthRoutes() {
          * The app expects an OpenAI-compatible /v1/models endpoint to verify connectivity.
          */
         get("/v1/models") {
-            val modelState = OpencodeModelRegistry.currentState()
-            val response =
-                mapOf(
-                    "object" to "list",
-                    "data" to
-                        modelState.models.map { model ->
-                            mapOf(
-                                "id" to model.id,
-                                "object" to "model",
-                                "created" to modelState.updatedAt / 1000,
-                                "owned_by" to "opencode-cli-free",
-                            )
-                        },
-                )
-            call.respond(response)
+            val modelList = listOf(
+                mapOf("id" to "openrouter/auto", "object" to "model", "created" to 0, "owned_by" to "openrouter"),
+                mapOf("id" to "google/gemini-2.5-pro-exp-03-25:free", "object" to "model", "created" to 0, "owned_by" to "google"),
+                mapOf("id" to "deepseek/deepseek-chat-v3-0324:free", "object" to "model", "created" to 0, "owned_by" to "deepseek"),
+                mapOf("id" to "meta-llama/llama-4-scout:free", "object" to "model", "created" to 0, "owned_by" to "meta"),
+            )
+            call.respond(mapOf("object" to "list", "data" to modelList))
         }
     }
 }

@@ -3,8 +3,8 @@ package com.example.smarty.server.config
 /**
  * Centralized Application Configuration.
  *
- * OpenCode CLI is the ONLY LLM provider — no API keys required.
- * All model inference routes through `opencode run` with free Zen models.
+ * OpenRouter is the only LLM provider — no API keys required.
+ * All model inference routes through OpenRouter with free models.
  *
  * Single Responsibility: Only handles configuration management.
  * DRY: Replaces scattered System.getenv() calls across files.
@@ -34,7 +34,6 @@ object AppConfig {
     val enableDeepResearch: Boolean = System.getenv("ENABLE_DEEP_RESEARCH")?.toBoolean() ?: true
     val enableVision: Boolean = System.getenv("ENABLE_VISION")?.toBoolean() ?: true
     val enableRAG: Boolean = System.getenv("ENABLE_RAG")?.toBoolean() ?: true
-    val enableLangChain4j: Boolean = System.getenv("ENABLE_LANGCHAIN4J")?.toBoolean() ?: false
 
     // Limits
     val maxConcurrentSessions: Int = System.getenv("MAX_CONCURRENT_SESSIONS")?.toIntOrNull() ?: 10
@@ -62,7 +61,7 @@ object AppConfig {
 
     /**
      * Validate that required configuration is present.
-     * OpenCode CLI requires NO API keys — only DB_URL is mandatory.
+     * Only DB_URL is mandatory.
      */
     fun validate(): List<String> {
         val errors = mutableListOf<String>()
@@ -81,7 +80,7 @@ object AppConfig {
         mapOf(
             "environment" to environment,
             "server_port" to serverPort,
-            "llm_provider" to "opencode-cli-free",
+            "llm_provider" to "openrouter",
             "krea_api_key_set" to (kreaApiKey != null),
             "max_concurrent_sessions" to maxConcurrentSessions,
             "monitoring_enabled" to enableMonitoring,
