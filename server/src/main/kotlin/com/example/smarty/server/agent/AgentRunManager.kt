@@ -16,6 +16,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.util.UUID
@@ -282,6 +283,125 @@ object AgentRunManager {
     /**
      * Cancel an active run for a specific session gracefully.
      */
+    /**
+     * Starts an agent run using the new LangChain4j AgentEngine.
+     * Manages the same session lifecycle as [startRun] but uses [AgentEngine.stream]
+     * instead of [ServerAgent.run].
+     */
+    fun startEngineRun(
+        engine: com.example.smarty.server.agent2.AgentEngine,
+        request: com.example.smarty.server.agent2.AgentRequest,
+        messageId: String? = null,
+        fcmService: com.example.smarty.server.services.FcmNotificationService? = null,
+    ): Boolean {
+        val sessionId = request.sessionId
+        val existingJob = activeRuns[sessionId]
+        if (existingJob?.isActive == true) {
+            if (ApprovalRegistry.hasPendingForSession(sessionId)) {
+                logger.warn("Agent run already active for session: $sessionId with pending approval. Ignoring new query.")
+                return false
+            }
+            logger.warn("Agent run already active for session: $sessionId. Cancelling existing and starting new.")
+            existingJob.cancel()
+            activeRuns.remove(sessionId)
+        }
+
+        if (!messageId.isNullOrBlank()) {
+            messageIdMap[sessionId] = messageId
+        }
+
+        val flow = sessionEventFlows.getOrPut(sessionId) {
+            MutableSharedFlow(replay = 10, extraBufferCapacity = 100)
+        }
+
+        val job = agentScope.launch {
+            val eventEmitter: suspend (AgentEvent) -> Unit = { event -> emitEvent(sessionId, event) }
+
+            try {
+                val textBuilder = StringBuilder()
+
+                engine.stream(request, eventEmitter)
+                    .collect { token ->
+                        textBuilder.append(token)
+                        emitEvent(
+                            sessionId,
+                            AgentEvent.TextDelta(
+                                eventId = UUID.randomUUID().toString(),
+                                timestamp = System.currentTimeMillis(),
+                                text = token,
+                            ),
+                        )
+                    }
+
+                val fullText = textBuilder.toString()
+                logger.info("[EngineRun] Agent run completed for session: $sessionId, response length: ${fullText.length}")
+
+                if (fullText.isNotBlank()) {
+                    val ts = System.currentTimeMillis()
+                    if (!hasBridgeSentText(sessionId)) {
+                        logger.info("[EngineRun] bridge did not emit text, emitting directly for session=$sessionId len=${fullText.length}")
+                        emitEvent(
+                            sessionId,
+                            AgentEvent.TextDelta(
+                                eventId = UUID.randomUUID().toString(),
+                                timestamp = ts,
+                                text = fullText,
+                            ),
+                        )
+                    }
+                    emitEvent(
+                        sessionId,
+                        AgentEvent.ResponseBlock(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = ts,
+                            sessionId = sessionId,
+                            messageId = messageIdMap[sessionId] ?: UUID.randomUUID().toString(),
+                            content = fullText,
+                        ),
+                    )
+                }
+            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                logger.error("[EngineRun] Agent timed out for session: $sessionId")
+                emitEvent(
+                    sessionId,
+                    AgentEvent.Error(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = System.currentTimeMillis(),
+                        message = "Agent execution timed out",
+                        code = "TIMEOUT",
+                    ),
+                )
+            } catch (e: Exception) {
+                val msg = "[EngineRun] Agent execution failed for session: $sessionId: ${e.message}"
+                logger.error(msg, e)
+                emitEvent(
+                    sessionId,
+                    AgentEvent.Error(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = System.currentTimeMillis(),
+                        message = e.message ?: "Unknown error",
+                        code = "INTERNAL_ERROR",
+                    ),
+                )
+            } finally {
+                kotlinx.coroutines.delay(1500)
+                emitEvent(sessionId, AgentEvent.Done(eventId = UUID.randomUUID().toString(), timestamp = System.currentTimeMillis()))
+                ActiveEventBridge.clear(request.userId)
+                ApprovalRegistry.cancelApprovalsForSession(sessionId)
+                ThinkingStorageManagerSingleton.instance.clear(sessionId)
+                ActiveSessionManager.endSession(request.userId, sessionId)
+                activeRuns.remove(sessionId)
+                messageIdMap.remove(sessionId)
+                bridgeSentTextSessions.remove(sessionId)
+                kotlinx.coroutines.delay(5000)
+                sessionEventFlows.remove(sessionId)
+            }
+        }
+
+        activeRuns[sessionId] = job
+        return true
+    }
+
     fun cancelRun(sessionId: String): Boolean {
         val job = activeRuns[sessionId]
         return if (job != null && job.isActive) {

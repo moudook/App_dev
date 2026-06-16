@@ -82,6 +82,10 @@ dependencies {
     // JVM Wasm & QuickJS for code_interpreter
     implementation("io.roastedroot:quickjs4j:0.0.17")
     implementation("com.dylibso.chicory:runtime:1.7.5")
+
+    // LangChain4j AI Agent Framework
+    implementation(libs.langchain4j)
+    implementation(libs.langchain4j.open.ai)
 }
 
 tasks.test {

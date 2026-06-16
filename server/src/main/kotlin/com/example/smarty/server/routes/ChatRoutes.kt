@@ -154,6 +154,13 @@ fun Application.configureChatRoutes(
     val calendarRepository = dataSource?.let { CalendarRepository(it, calendarEventNotesRepo!!) }
     val stackRepository = dataSource?.let { StackRepository(it) }
 
+    // LangChain4j engine (Phase 4, feature-flagged)
+    val langChain4jEngine = if (com.example.smarty.server.config.AppConfig.enableLangChain4j) {
+        com.example.smarty.server.agent2.EngineFactory.createEngine(this)
+    } else {
+        null
+    }
+
     routing {
         // ============================================================================
         // GET /chat/events
@@ -442,7 +449,19 @@ fun Application.configureChatRoutes(
                             toolCallId = toolCallId,
                         )
                     }
-                val resumed =
+                val resumed = if (langChain4jEngine != null) {
+                    val toolResultText = resumeToolResult?.content
+                        ?.let { """{"id":"$toolCallId","name":"ask_user","content":"${it.replace("\"", "\\\"")}"}""" }
+                    com.example.smarty.server.agent.AgentRunManager.startEngineRun(
+                        engine = langChain4jEngine,
+                        request = com.example.smarty.server.agent2.AgentRequest(
+                            query = "",
+                            sessionId = sessionId,
+                            userId = user.userId,
+                            resumeToolResultJson = toolResultText,
+                        ),
+                    )
+                } else {
                     com.example.smarty.server.agent.AgentRunManager.startRun(
                         userId = user.userId,
                         sessionId = sessionId,
@@ -467,6 +486,7 @@ fun Application.configureChatRoutes(
                         fcmService = fcmService,
                         resumeToolResult = resumeToolResult,
                     )
+                }
                 call.application.log.info("[Webhook] ask_user_response: resume requested session=$sessionId started=$resumed")
                 call.respond(HttpStatusCode.OK, mapOf("status" to "answered", "toolCallId" to toolCallId, "resumed" to resumed))
             }
@@ -593,7 +613,22 @@ fun Application.configureChatRoutes(
                                 }
 
                                 // Launch the run via decoupled manager
-                                val started =
+                                val started = if (langChain4jEngine != null) {
+                                    com.example.smarty.server.agent.AgentRunManager.startEngineRun(
+                                        engine = langChain4jEngine,
+                                        request = com.example.smarty.server.agent2.AgentRequest(
+                                            query = chatRequest.query,
+                                            sessionId = activeSessionId,
+                                            userId = userId,
+                                            modelOverride = chatRequest.model,
+                                            clientTimezone = chatRequest.timezone,
+                                            clientTimeMillis = chatRequest.clientTime,
+                                            personality = chatRequest.personality,
+                                            section = chatRequest.section,
+                                        ),
+                                        messageId = chatRequest.messageId,
+                                    )
+                                } else {
                                     com.example.smarty.server.agent.AgentRunManager.startRun(
                                         userId = userId,
                                         sessionId = activeSessionId,
@@ -616,6 +651,7 @@ fun Application.configureChatRoutes(
                                         variantOverride = chatRequest.variant,
                                         section = chatRequest.section,
                                     )
+                                }
                                 if (!started) {
                                     send(
                                         Frame.Text(

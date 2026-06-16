@@ -34,6 +34,7 @@ object AppConfig {
     val enableDeepResearch: Boolean = System.getenv("ENABLE_DEEP_RESEARCH")?.toBoolean() ?: true
     val enableVision: Boolean = System.getenv("ENABLE_VISION")?.toBoolean() ?: true
     val enableRAG: Boolean = System.getenv("ENABLE_RAG")?.toBoolean() ?: true
+    val enableLangChain4j: Boolean = System.getenv("ENABLE_LANGCHAIN4J")?.toBoolean() ?: false
 
     // Limits
     val maxConcurrentSessions: Int = System.getenv("MAX_CONCURRENT_SESSIONS")?.toIntOrNull() ?: 10

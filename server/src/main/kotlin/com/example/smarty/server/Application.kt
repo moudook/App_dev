@@ -14,6 +14,13 @@ import com.example.smarty.server.data.SearchHistoryRepository
 import com.example.smarty.server.data.TagRepository
 import com.example.smarty.server.data.TaskRepository
 import com.example.smarty.server.data.UserDeviceRepository
+import com.example.smarty.server.agent.ApplicationAttributes
+import com.example.smarty.server.agent2.ContextWindowManager
+import com.example.smarty.server.agent2.OpenRouterChatModelFactory
+import com.example.smarty.server.agent2.OpenRouterConfig
+import com.example.smarty.server.agent2.OpenRouterModelProvider
+import com.example.smarty.server.agent2.PostgresChatMemoryStore
+import com.example.smarty.server.config.AppConfig
 import com.example.smarty.server.llm.LlmProviderFactory
 import com.example.smarty.server.plugins.FirebaseUserPrincipal
 import com.example.smarty.server.plugins.configureEnhancedHealthCheck
@@ -125,6 +132,33 @@ fun Application.module() {
     modelDiscoveryThread.isDaemon = true
     modelDiscoveryThread.name = "model-discovery"
     modelDiscoveryThread.start()
+
+    // Phase 1: LangChain4j Agent Foundation (feature-flagged)
+    if (AppConfig.enableLangChain4j) {
+        log.info("=== LangChain4j agent foundation enabled ===")
+        val modelProvider = OpenRouterModelProvider()
+        val ctxWindowManager = ContextWindowManager(modelProvider)
+        val chatModelFactory = OpenRouterChatModelFactory(OpenRouterConfig())
+        val chatMemoryStore = DatabaseFactory.getDataSource()?.let { PostgresChatMemoryStore { DatabaseFactory.getDataSource()?.connection } }
+
+        // Discover models in background for context window cache
+        val langchain4jDiscoveryThread = Thread {
+            kotlinx.coroutines.runBlocking {
+                modelProvider.getAllModels()
+                log.info("[LangChain4j] Discovered ${modelProvider.getAllModels().size} models for context window management")
+            }
+        }
+        langchain4jDiscoveryThread.isDaemon = true
+        langchain4jDiscoveryThread.name = "langchain4j-model-discovery"
+        langchain4jDiscoveryThread.start()
+
+        // Stash on Application attributes for downstream wiring
+        attributes.put(ApplicationAttributes.CONTEXT_WINDOW_MANAGER, ctxWindowManager)
+        attributes.put(ApplicationAttributes.CHAT_MODEL_FACTORY, chatModelFactory)
+        if (chatMemoryStore != null) {
+            attributes.put(ApplicationAttributes.CHAT_MEMORY_STORE, chatMemoryStore)
+        }
+    }
 
     // Initialize Database
     DatabaseFactory.init()
