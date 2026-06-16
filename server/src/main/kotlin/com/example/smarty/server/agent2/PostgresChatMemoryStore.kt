@@ -44,6 +44,8 @@ class PostgresChatMemoryStore(
             }
         } catch (e: Exception) {
             logger.error("[PostgresChatMemoryStore] Failed to ensure table: ${e.message}")
+        } finally {
+            try { conn.close() } catch (_: Exception) {}
         }
     }
 
@@ -67,6 +69,8 @@ class PostgresChatMemoryStore(
         } catch (e: Exception) {
             logger.error("[PostgresChatMemoryStore] Failed to get messages for $sessionId: ${e.message}")
             return emptyList()
+        } finally {
+            try { conn.close() } catch (_: Exception) {}
         }
     }
 
@@ -96,6 +100,7 @@ class PostgresChatMemoryStore(
             try { conn.rollback() } catch (_: Exception) {}
         } finally {
             try { conn.autoCommit = true } catch (_: Exception) {}
+            try { conn.close() } catch (_: Exception) {}
         }
     }
 
@@ -109,6 +114,8 @@ class PostgresChatMemoryStore(
             }
         } catch (e: Exception) {
             logger.error("[PostgresChatMemoryStore] Failed to delete messages for $sessionId: ${e.message}")
+        } finally {
+            try { conn.close() } catch (_: Exception) {}
         }
     }
 }
