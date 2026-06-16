@@ -11,6 +11,7 @@ import io.ktor.server.routing.routing
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 
+@Serializable
 data class ModelInfo(
     val id: String,
     val label: String,
@@ -25,6 +26,7 @@ val HARDCODED_MODELS = listOf(
     ModelInfo("mistralai/mistral-small-3.1-24b-instruct:free", "Mistral Small 3.1 (free)", "mistral"),
 )
 
+@Serializable
 data class ModelState(
     val default: String = "openrouter/auto",
     val models: List<ModelInfo> = HARDCODED_MODELS,
