@@ -183,7 +183,7 @@ object AgentRunManager {
                     AgentEvent.Error(
                         eventId = UUID.randomUUID().toString(),
                         timestamp = System.currentTimeMillis(),
-                        message = e.message ?: "Unknown error",
+                        message = e.message ?: "Unknown error (${e.javaClass.simpleName})",
                         code = "INTERNAL_ERROR",
                     ),
                 )

@@ -27,12 +27,10 @@ class OpenRouterChatModelFactory(
         temperature: Double = 0.7,
         sessionId: String? = null,
     ): OpenAiStreamingChatModel {
-        val freeModelId = if (modelId.contains(":free")) modelId else "$modelId:free"
-
         val builder = OpenAiStreamingChatModel.builder()
             .baseUrl(config.baseUrl)
             .apiKey(config.apiKey)
-            .modelName(freeModelId)
+            .modelName(modelId)
             .maxTokens(maxTokens)
             .temperature(temperature)
             .customHeaders(
@@ -65,7 +63,7 @@ class OpenRouterChatModelFactory(
 
         builder.customParameters(params)
 
-        logger.info("[OpenRouterChatModelFactory] Built streaming model: $freeModelId (maxTokens=$maxTokens, thinking=$thinkingTokens)")
+        logger.info("[OpenRouterChatModelFactory] Built streaming model: $modelId (maxTokens=$maxTokens, thinking=$thinkingTokens)")
 
         return builder.build()
     }
