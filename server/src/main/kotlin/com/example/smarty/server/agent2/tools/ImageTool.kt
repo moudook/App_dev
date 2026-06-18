@@ -7,7 +7,7 @@ import dev.langchain4j.agent.tool.P
 import org.slf4j.LoggerFactory
 
 class ImageTool(
-    private val kreaTool: KreaImageTool = KreaImageTool(),
+    private val kreaTool: KreaImageTool = KreaImageTool.shared,
     private val userId: String = "dev-user",
     private val permissionEnforcer: ToolPermissionEnforcer = ToolPermissionEnforcer(),
 ) {

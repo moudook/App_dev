@@ -397,7 +397,7 @@ fun Application.module() {
                 visionService = visionService,
                 kreaImageTool =
                     com.example.smarty.server.tools
-                        .KreaImageTool(),
+                        .KreaImageTool.shared,
             )
         configureOrchestratorRoutes(orchestratorService)
         log.info("OrchestratorRoutes configured")

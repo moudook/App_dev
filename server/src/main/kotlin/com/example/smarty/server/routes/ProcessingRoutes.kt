@@ -254,7 +254,7 @@ fun Application.configureProcessingRoutes() {
                     log.info(" Creating KreaImageTool instance...")
                     val kreaTool =
                         com.example.smarty.server.tools
-                            .KreaImageTool()
+                            .KreaImageTool.shared
                     log.info(" Calling kreaTool.generateImage()...")
                     val jobId = kreaTool.generateImage(request.prompt, request.aspectRatio)
                     log.info(" Image generation triggered successfully! Job ID: $jobId")

@@ -95,6 +95,7 @@ data class ImageGenerationResult(
 class KreaImageTool {
     companion object {
         private val json = Json { ignoreUnknownKeys = true }
+        val shared by lazy { KreaImageTool() }
     }
 
     private val logger = LoggerFactory.getLogger(KreaImageTool::class.java)
