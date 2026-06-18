@@ -19,11 +19,7 @@ data class ModelInfo(
 )
 
 val HARDCODED_MODELS = listOf(
-    ModelInfo("openrouter/auto", "Auto (OpenRouter)", "openrouter"),
-    ModelInfo("google/gemini-2.5-pro-exp-03-25:free", "Gemini 2.5 Pro (free)", "google"),
-    ModelInfo("deepseek/deepseek-chat-v3-0324:free", "DeepSeek V3 (free)", "deepseek"),
-    ModelInfo("meta-llama/llama-4-scout:free", "Llama 4 Scout (free)", "meta"),
-    ModelInfo("mistralai/mistral-small-3.1-24b-instruct:free", "Mistral Small 3.1 (free)", "mistral"),
+    ModelInfo("openrouter/auto", "OpenRouter Auto", "openrouter"),
 )
 
 @Serializable
