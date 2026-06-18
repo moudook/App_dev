@@ -72,7 +72,7 @@ class AiServicesEngine(
 
         val assistant = AiServices.builder(StreamingAssistant::class.java)
             .streamingChatModel(model)
-            .chatMemory(chatMemory)
+            .chatMemoryProvider { _ -> chatMemory }
             .systemMessageProvider { systemPromptBuilder.build(systemRequest) }
             .tools(*tools.toTypedArray())
             .build()
