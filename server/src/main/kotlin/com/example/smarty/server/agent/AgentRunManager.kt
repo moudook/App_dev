@@ -175,6 +175,9 @@ object AgentRunManager {
                         code = "TIMEOUT",
                     ),
                 )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                logger.info("[EngineRun] Agent run cancelled for session: $sessionId")
+                throw e
             } catch (e: Exception) {
                 val msg = "[EngineRun] Agent execution failed for session: $sessionId: ${e.message}"
                 logger.error(msg, e)
@@ -189,15 +192,23 @@ object AgentRunManager {
                 )
             } finally {
                 kotlinx.coroutines.delay(1500)
-                emitEvent(sessionId, AgentEvent.Done(eventId = UUID.randomUUID().toString(), timestamp = System.currentTimeMillis()))
-                ActiveEventBridge.clear(request.userId)
-                ApprovalRegistry.cancelApprovalsForSession(sessionId)
-                ActiveSessionManager.endSession(request.userId, sessionId)
-                activeRuns.remove(sessionId)
-                messageIdMap.remove(sessionId)
-                bridgeSentTextSessions.remove(sessionId)
+                val currentJob = coroutineContext[kotlinx.coroutines.Job]
+                val isLatestJob = activeRuns[sessionId] == currentJob
+                
+                if (isLatestJob) {
+                    emitEvent(sessionId, AgentEvent.Done(eventId = UUID.randomUUID().toString(), timestamp = System.currentTimeMillis()))
+                    ActiveEventBridge.clear(request.userId)
+                    ApprovalRegistry.cancelApprovalsForSession(sessionId)
+                    ActiveSessionManager.endSession(request.userId, sessionId)
+                    activeRuns.remove(sessionId)
+                    messageIdMap.remove(sessionId)
+                    bridgeSentTextSessions.remove(sessionId)
+                }
+                
                 kotlinx.coroutines.delay(5000)
-                sessionEventFlows.remove(sessionId)
+                if (activeRuns[sessionId] == null || activeRuns[sessionId] == currentJob) {
+                    sessionEventFlows.remove(sessionId)
+                }
             }
         }
 

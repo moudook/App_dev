@@ -170,8 +170,10 @@ class RemoteAgentService(
                 _connectionState.value = ConnectionStatus.CONNECTING
                 Log.i(TAG, ">>> SEND_QUERY: attempt ${retryCount + 1}/$maxRetries")
 
+                var isTerminal = false
+                var receivedDone = false
+                val seenEventIds = mutableSetOf<String>()
                 try {
-                    var isTerminal = false
                     client.webSocket(
                         urlString = url,
                         request = {
@@ -218,8 +220,7 @@ class RemoteAgentService(
                         send(Frame.Text(requestJson))
                         Log.i(TAG, ">>> WS_SENT: ChatQueryRequest sent (length=${requestJson.length})")
 
-                        val seenEventIds = mutableSetOf<String>()
-
+                        // seenEventIds is tracked outside to survive retry loop
                         try {
                             for (frame in incoming) {
                                 if (frame is Frame.Text) {
@@ -270,6 +271,8 @@ class RemoteAgentService(
                                             isTerminal = true
                                             break
                                         }
+                                    } catch (e: kotlinx.coroutines.CancellationException) {
+                                        throw e
                                     } catch (e: Exception) {
                                         if (e is EndStreamException) throw e
                                         Log.e(TAG, "Failed to process WS event (length: ${data.length}): ${e.message}", e)
@@ -279,6 +282,7 @@ class RemoteAgentService(
                         } catch (e: EndStreamException) {
                             Log.i(TAG, ">>> WS_COMPLETE: Stream completed normally")
                             isTerminal = true
+                            receivedDone = true
                         }
                     }
                     if (isTerminal) {
@@ -293,9 +297,28 @@ class RemoteAgentService(
                         _connectionState.value = ConnectionStatus.DISCONNECTED
                         Log.i(TAG, ">>> WS_DISCONNECTED: WebSocket closed normally (no terminal event)")
                     }
+                    if (!receivedDone && seenEventIds.isNotEmpty()) {
+                        Log.e(TAG, ">>> WS_SILENT_DROP: WebSocket closed cleanly mid-stream without Done event")
+                        emit(AgentEvent.Error(
+                            eventId = java.util.UUID.randomUUID().toString(),
+                            timestamp = System.currentTimeMillis(),
+                            message = "Connection lost mid-stream"
+                        ))
+                    }
                     break
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Log.e(TAG, "WS connection failed (attempt ${retryCount + 1}/$maxRetries): ${e.message}", e)
+                    if (seenEventIds.isNotEmpty()) {
+                        Log.e(TAG, "Connection lost mid-stream, aborting retries to prevent duplicates")
+                        emit(AgentEvent.Error(
+                            eventId = java.util.UUID.randomUUID().toString(),
+                            timestamp = System.currentTimeMillis(),
+                            message = "Connection lost mid-stream"
+                        ))
+                        break
+                    }
                     retryCount++
                     if (retryCount < maxRetries) {
                         _connectionState.value = ConnectionStatus.OFFLINE

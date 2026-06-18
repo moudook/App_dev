@@ -476,13 +476,14 @@ fun Application.configureChatRoutes(
                         .getEventFlow(sessionIdParam)
 
                 // Job 1: Heartbeat keepalive to prevent proxy idle timeouts
-                // Use Frame.Text (not Ping) because HF proxy strips Ping frames
-                val heartbeatJob =
+                                val heartbeatJob =
                     launch {
                         while (isActive) {
                             delay(10_000L)
                             try {
                                 send(Frame.Text("""{"type":"ping"}"""))
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
                             } catch (e: Exception) {
                                 break
                             }
@@ -495,6 +496,8 @@ fun Application.configureChatRoutes(
                         flow.collect { event ->
                             try {
                                 send(Frame.Text(json.encodeToString(AgentEvent.serializer(), event)))
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
                             } catch (e: Exception) {
                                 call.application.log.debug("Failed to send WS frame to $userId: ${e.message}")
                             }

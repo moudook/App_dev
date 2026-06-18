@@ -36,6 +36,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonPrimitive
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -399,6 +402,7 @@ class ChatQueryDispatcher(
             var finalReasoningText = ""
             var finalReasoningDurationMs: Long? = null
             var finalResponseText = ""
+            var streamError = false
             val pendingToolCallsMap = LinkedHashMap<String, AgentToolCallEntry>()
             val orderedToolCallIds = mutableListOf<String>()
             val collectedAgentSteps = LinkedHashMap<Int, com.example.smarty.core.domain.model.AgentStepEntry>()
@@ -784,10 +788,19 @@ class ChatQueryDispatcher(
                         is AgentEvent.Error -> {
                             isThinkingActive = false
                             isStreamingActive = false
-                            val cleanError = event.message
+                            streamError = true
+                            val rawError = event.message
                                 .replace(Regex("<think>[\\s\\S]*?</think>", RegexOption.IGNORE_CASE), "")
                                 .trim()
-                            fallbackTextBuilder.append("\n[$cleanError]")
+                            val cleanError = try {
+                                val json = kotlinx.serialization.json.Json.parseToJsonElement(rawError)
+                                when (json) {
+                                    is kotlinx.serialization.json.JsonArray -> json.joinToString(" ") { it.jsonPrimitive.content }
+                                    is kotlinx.serialization.json.JsonObject -> json["error"]?.jsonPrimitive?.content ?: rawError
+                                    else -> rawError
+                                }
+                            } catch (e: Exception) { rawError }
+                            fallbackTextBuilder.append("\n\n⚠️ $cleanError")
                             _pendingApprovalState.value = null
                             _pendingClarificationRequests.value = emptyList()
                             for (id in orderedToolCallIds) {
@@ -1046,6 +1059,7 @@ class ChatQueryDispatcher(
                 citations = pendingCitations.toList().map { Citation(it.title, it.url, it.snippet) },
                 inlineImages = pendingInlineImages.map { com.example.smarty.core.domain.model.InlineChatImage(uri = it.uri, fileName = it.fileName, noteTitle = it.noteTitle) },
                 isStreaming = false,
+                isError = streamError,
                 agentEvents = agentEventsBuilder.toList(),
                 clarificationRequest = null,
                 noteReferences = emptyList(),

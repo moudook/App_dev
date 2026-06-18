@@ -34,7 +34,7 @@ class AiServicesEngine(
             sessionId = sessionId,
         )
 
-        val chatMemoryLimit = contextWindowManager.getChatMemoryLimitForModel(modelId)
+        val chatMemoryLimit = (contextWindowManager.getChatMemoryLimitForModel(modelId) * 0.8).toInt()
         val compactTrigger = contextWindowManager.getCompactTriggerForModel(modelId)
 
         val memoryBuilder = TokenWindowChatMemory.builder()
@@ -81,7 +81,13 @@ class AiServicesEngine(
 
         assistant.chat(sessionId, request.query)
             .onPartialResponse { token ->
-                channel.trySend(token)
+                try {
+                    if (!channel.isClosedForSend) {
+                        channel.trySend(token)
+                    }
+                } catch (e: Exception) {
+                    // Ignore send failures if channel is closed
+                }
             }
             .onCompleteResponse {
                 channel.close()

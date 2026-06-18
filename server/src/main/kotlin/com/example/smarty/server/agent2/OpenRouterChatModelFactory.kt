@@ -19,6 +19,7 @@ class OpenRouterChatModelFactory(
     private val listeners: List<ChatModelListener> = emptyList(),
 ) {
     private val logger = LoggerFactory.getLogger(OpenRouterChatModelFactory::class.java)
+    private val modelCache = java.util.concurrent.ConcurrentHashMap<String, OpenAiStreamingChatModel>()
 
     fun buildStreamingModel(
         modelId: String,
@@ -27,7 +28,9 @@ class OpenRouterChatModelFactory(
         temperature: Double = 0.7,
         sessionId: String? = null,
     ): OpenAiStreamingChatModel {
-        val builder = OpenAiStreamingChatModel.builder()
+        val cacheKey = "$modelId|$maxTokens|$thinkingTokens|$temperature"
+        return modelCache.getOrPut(cacheKey) {
+            val builder = OpenAiStreamingChatModel.builder()
             .baseUrl(config.baseUrl)
             .apiKey(config.apiKey)
             .modelName(modelId)
@@ -47,9 +50,6 @@ class OpenRouterChatModelFactory(
         }
 
         val extraBody = mutableMapOf<String, Any>()
-        if (sessionId != null) {
-            extraBody["session_id"] = sessionId
-        }
         if (config.enableCache) {
             extraBody["x-openrouter-cache"] = true
         }
@@ -63,8 +63,9 @@ class OpenRouterChatModelFactory(
 
         builder.customParameters(params)
 
-        logger.info("[OpenRouterChatModelFactory] Built streaming model: $modelId (maxTokens=$maxTokens, thinking=$thinkingTokens)")
+        logger.info("[OpenRouterChatModelFactory] Built and cached streaming model: $modelId (maxTokens=$maxTokens, thinking=$thinkingTokens)")
 
-        return builder.build()
+        builder.build()
+        }
     }
 }
